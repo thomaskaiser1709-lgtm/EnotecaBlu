@@ -51,7 +51,7 @@ textarea{font:12px/1.4 monospace;height:150px}footer{background:var(--navy);colo
 <div class="panel" id="ap" hidden style="margin-top:8px"><h2>Weine verwalten</h2>
 <p class="note">Excel-Datei (.xls/.xlsx) mit den Spalten Name, Winzer, Art, Land, Region, Traube, Jahrgang, Menge, Preis, Beschreibung. Die Spalten Bestand und Bild werden ignoriert.</p>
 <div class="row"><div><label for="up">Excel hochladen</label><input id="up" type="file" accept=".xls,.xlsx"></div><div><label for="um">Modus</label><select id="um"><option value="r">Alle Weine ersetzen</option><option value="m">Zusammenführen (Name + Jahrgang)</option></select></div></div>
-<div class="row" style="margin-top:8px"><button id="nw" type="button">+ Neuer Wein</button><button id="pb" type="button" class="btn gold" style="margin:0">Änderungen veröffentlichen</button><span class="note" id="as"></span></div>
+<div class="row" style="margin-top:8px"><button id="nw" type="button">+ Neuer Wein</button><button id="pb" type="button" class="btn gold" style="margin:0">Änderungen speichern / veröffentlichen</button><span class="note" id="as"></span></div>
 <div id="ef" class="fg" hidden></div><div class="row" id="eb" hidden><button id="es" type="button">Wein übernehmen</button><button id="ec" type="button">Abbrechen</button></div>
 <div class="sc" style="margin-top:10px"><table><thead><tr><th>Name</th><th>Winzer</th><th>Jg.</th><th>Preis</th><th></th></tr></thead><tbody id="at"></tbody></table></div></div></div>
 <main><section>
@@ -140,9 +140,19 @@ const L=rows.map(r=>{const o={};F.forEach(k=>o[k]="");for(const h in r){const k=
 if(!L.length)throw new Error("Keine Weine gefunden – Spaltenüberschriften prüfen.");
 if($("um").value=="r")W=L;else L.forEach(o=>{const i=W.findIndex(w=>w.n.toLowerCase()==o.n.toLowerCase()&&w.j==o.j);i>=0?W[i]=o:W.push(o)});
 changed();$("as").textContent=L.length+" Weine aus „"+f.name+"“ geladen. Ungespeicherte Änderungen – bitte veröffentlichen."}catch(x){$("as").textContent="Fehler beim Lesen: "+x.message}e.target.value=""};
-$("pb").onclick=async()=>{try{const art=await claude.use("artifact");if(!art)throw{code:"na"};const a="<scr"+'ipt id="wd" type="application/json">',i=SRC.indexOf(a),j=SRC.indexOf("</scr"+"ipt>",i);
-const html=SRC.slice(0,i+a.length)+JSON.stringify(W.map(strip)).replace(/</g,"\\u003c")+SRC.slice(j);$("as").textContent="Veröffentliche …";await art.publish(html)}catch(x){$("as").textContent=x&&x.code=="conflict"?"":"Veröffentlichen nicht möglich ("+(x&&x.code||"Fehler")+"). Nur Besitzer/Editoren dürfen speichern."}};
-(async()=>{try{const u=window.claude&&await claude.use("user");if(u&&((await u.isOwner())||(await u.canEdit())))$("admb").hidden=false}catch(e){}})();
+$("pb").onclick=async()=>{
+const a='<scr'+'ipt id="wd" type="application/json">';
+const build=src=>{const i=src.indexOf(a),j=src.indexOf("</scr"+"ipt>",i);return src.slice(0,i+a.length)+JSON.stringify(W.map(strip)).replace(/</g,"\\u003c")+src.slice(j)};
+try{
+if(window.claude){const art=await claude.use("artifact");if(!art)throw{code:"na"};$("as").textContent="Veröffentliche …";await art.publish(build(SRC));dirty=false;return}
+let src=SRC;try{const r=await fetch(location.pathname,{cache:"no-store"});if(r.ok){const t=await r.text();if(t.indexOf(a)>=0)src=t}}catch(e){}
+const blob=new Blob([build(src)],{type:"text/html"}),l=document.createElement("a");l.href=URL.createObjectURL(blob);l.download="index.html";document.body.appendChild(l);l.click();l.remove();
+dirty=false;$("as").textContent="index.html heruntergeladen. Diese Datei bei GitHub hochladen (Add file → Upload files) und die alte ersetzen."
+}catch(x){$("as").textContent=x&&x.code==="conflict"?"":"Speichern nicht möglich ("+(x&&x.code||"Fehler")+")."}};
+const showAdm=()=>{$("admb").hidden=false};
+if(location.hash==="#admin")showAdm();
+window.addEventListener("hashchange",()=>{if(location.hash==="#admin")showAdm()});
+(async()=>{try{const u=window.claude&&await claude.use("user");if(u&&((await u.isOwner())||(await u.canEdit())))showAdm()}catch(e){}})();
 window.addEventListener("beforeunload",e=>{if(dirty){e.preventDefault()}});
 draw();sumup();
 </script></body></html>
